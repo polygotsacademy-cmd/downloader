@@ -1,0 +1,84 @@
+name: Build Windows installer
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "downloads/YouTubeDownloaderSetup.exe"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  FFMPEG_URL: "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop/requirements.txt pyinstaller
+
+      - name: Download FFmpeg runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path desktop/vendor | Out-Null
+          Invoke-WebRequest -Uri $env:FFMPEG_URL -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-extracted -Force
+          $ffmpeg = Get-ChildItem -Path ffmpeg-extracted -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          if (-not $ffmpeg) { throw "ffmpeg.exe was not found" }
+          Copy-Item $ffmpeg.FullName desktop/vendor/ffmpeg.exe -Force
+
+      - name: Build one-file application
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath desktop/dist --workpath desktop/build desktop/YouTubeDownloaderAR.spec
+          if (-not (Test-Path desktop/dist/YouTubeDownloaderAR.exe)) { throw "Application exe was not created" }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" desktop/installer/YouTubeDownloaderSetup.iss
+          if (-not (Test-Path desktop/installer-output/YouTubeDownloaderSetup.exe)) { throw "Installer was not created" }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YouTubeDownloaderSetup
+          path: desktop/installer-output/YouTubeDownloaderSetup.exe
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: YouTube Downloader AR v1.0.${{ github.run_number }}
+          generate_release_notes: true
+          files: desktop/installer-output/YouTubeDownloaderSetup.exe
+
+      - name: Copy installer into Vercel site
+        shell: pwsh
+        run: Copy-Item desktop/installer-output/YouTubeDownloaderSetup.exe downloads/YouTubeDownloaderSetup.exe -Force
+
+      - name: Commit installer for Vercel
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: publish Windows installer [skip ci]"
+          file_pattern: downloads/YouTubeDownloaderSetup.exe

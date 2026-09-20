@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+desktop/build/
+desktop/dist/
+desktop/installer-output/
+desktop/vendor/ffmpeg.exe
+desktop/vendor/ffprobe.exe
