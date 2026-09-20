@@ -8,7 +8,7 @@
 
 1. GitHub Actions يشغّل Windows Runner.
 2. يثبت Python و`yt-dlp` وPyInstaller.
-3. ينزّل FFmpeg ويضمّنه داخل التطبيق.
+3. ينزّل FFmpeg من GitHub مع إعادة المحاولة، ويستخدم مصدرًا بديلًا عند الحاجة.
 4. يبني `YouTubeDownloaderAR.exe`.
 5. يبني `YouTubeDownloaderSetup.exe` باستخدام Inno Setup.
 6. يرفع المثبّت كـ GitHub Release وArtifact.

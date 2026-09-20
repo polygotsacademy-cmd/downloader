@@ -12,7 +12,6 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  FFMPEG_URL: "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 
 jobs:
   build-windows:
@@ -37,7 +36,25 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path desktop/vendor | Out-Null
-          Invoke-WebRequest -Uri $env:FFMPEG_URL -OutFile ffmpeg.zip
+          $urls = @(
+            "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          )
+          $downloaded = $false
+          foreach ($url in $urls) {
+            for ($attempt = 1; $attempt -le 4; $attempt++) {
+              try {
+                Write-Host "Downloading FFmpeg (attempt $attempt): $url"
+                Invoke-WebRequest -UseBasicParsing -Headers @{ "User-Agent" = "GitHubActions" } -Uri $url -OutFile ffmpeg.zip
+                if ((Get-Item ffmpeg.zip).Length -gt 1000000) { $downloaded = $true; break }
+              } catch {
+                Write-Warning "FFmpeg download failed: $($_.Exception.Message)"
+                Start-Sleep -Seconds (10 * $attempt)
+              }
+            }
+            if ($downloaded) { break }
+          }
+          if (-not $downloaded) { throw "Could not download FFmpeg from any configured source" }
           Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-extracted -Force
           $ffmpeg = Get-ChildItem -Path ffmpeg-extracted -Filter ffmpeg.exe -Recurse | Select-Object -First 1
           if (-not $ffmpeg) { throw "ffmpeg.exe was not found" }
